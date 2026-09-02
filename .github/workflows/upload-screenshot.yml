@@ -5,11 +5,16 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+concurrency:
+  group: screenshot-upload-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   playwright-s3-test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    #storing in GitHub secrets and variables for now
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -30,12 +35,30 @@ jobs:
       - name: Compile project
         run: mvn -B clean compile test-compile
 
-      - name: Install Playwright browsers
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browsers (with OS deps)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: >
           mvn -B org.codehaus.mojo:exec-maven-plugin:3.1.0:java
           -Dexec.mainClass="com.microsoft.playwright.CLI"
           -Dexec.classpathScope="test"
           -Dexec.args="install --with-deps chromium"
+
+          - name: Install Playwright browsers (cache hit, skip OS deps)
+            if: steps.playwright-cache.outputs.cache-hit == 'true'
+            run: >
+              mvn -B org.codehaus.mojo:exec-maven-plugin:3.1.0:java
+              -Dexec.mainClass="com.microsoft.playwright.CLI"
+              -Dexec.classpathScope="test"
+              -Dexec.args="install chromium"
 
       - name: Run tests
         run: mvn -B test
@@ -53,3 +76,10 @@ jobs:
         with:
           name: screenshot
           path: target/screenshots/
+
+      - name: Upload log file
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: target/logs/
