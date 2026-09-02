@@ -52,13 +52,13 @@ jobs:
           -Dexec.classpathScope="test"
           -Dexec.args="install --with-deps chromium"
 
-          - name: Install Playwright browsers (cache hit, skip OS deps)
-            if: steps.playwright-cache.outputs.cache-hit == 'true'
-            run: >
-              mvn -B org.codehaus.mojo:exec-maven-plugin:3.1.0:java
-              -Dexec.mainClass="com.microsoft.playwright.CLI"
-              -Dexec.classpathScope="test"
-              -Dexec.args="install chromium"
+      - name: Install Playwright browsers (cache hit, skip OS deps)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: >
+          mvn -B org.codehaus.mojo:exec-maven-plugin:3.1.0:java
+          -Dexec.mainClass="com.microsoft.playwright.CLI"
+          -Dexec.classpathScope="test"
+          -Dexec.args="install chromium"
 
       - name: Run tests
         run: mvn -B test
