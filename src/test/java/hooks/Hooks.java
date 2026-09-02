@@ -20,7 +20,6 @@ public class Hooks {
         playwright = Playwright.create();
         browser = playwright.chromium().launch(
                 new BrowserType.LaunchOptions().setHeadless(true)
-                        .setExecutablePath(Paths.get("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"))
         );
         page = browser.newPage();
     }
