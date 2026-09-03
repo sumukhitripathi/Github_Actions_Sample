@@ -2,11 +2,14 @@ package utils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -25,6 +28,13 @@ public class S3Uploader {
             throw new IllegalStateException("Environment variable S3_BUCKET_NAME is not set");
         }
 
+        Path path = Paths.get(filePath);
+
+        if (!Files.exists(path)) {
+            logger.error("File does not exist: {}", filePath);
+            throw new IllegalArgumentException("File not found: " + filePath);
+        }
+
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         String key = "screenshots/google-homepage-" + timestamp + ".png";
 
@@ -35,18 +45,52 @@ public class S3Uploader {
                 .region(Region.of(region))
                 .build()) {
 
-            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+            PutObjectRequest request = PutObjectRequest.builder()
                     .bucket(bucketName)
                     .key(key)
                     .build();
 
-            s3Client.putObject(putObjectRequest, Paths.get(filePath));
+            s3Client.putObject(request, path);
 
-            logger.info("Screenshot uploaded to s3://" + bucketName + "/" + key);
+            logger.info("Successfully uploaded file '{}' to s3://{}/{}",
+                    filePath, bucketName, key);
+
         } catch (S3Exception e) {
-            logger.error("S3 upload failed for bucket '{}', key '{}': {}",
-                    bucketName, key, e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage(), e);
+
+            logger.error(
+                    "AWS S3 error while uploading file '{}'. Bucket='{}', Key='{}', StatusCode='{}', RequestId='{}', Error='{}'",
+                    filePath,
+                    bucketName,
+                    key,
+                    e.statusCode(),
+                    e.requestId(),
+                    e.awsErrorDetails() != null
+                            ? e.awsErrorDetails().errorMessage()
+                            : e.getMessage(),
+                    e);
+
             throw e;
+
+        } catch (SdkException e) {
+
+            logger.error(
+                    "AWS SDK client error while uploading '{}' to bucket '{}': {}",
+                    filePath,
+                    bucketName,
+                    e.getMessage(),
+                    e);
+
+            throw e;
+
+        } catch (Exception e) {
+
+            logger.error(
+                    "Unexpected error while uploading '{}' to S3",
+                    filePath,
+                    e);
+
+            throw new RuntimeException(
+                    "Failed to upload file to S3", e);
         }
     }
 }
